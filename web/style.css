@@ -1,0 +1,113 @@
+:root {
+  --paper: #f2f5f8;
+  --surface: #ffffff;
+  --ink: #172433;
+  --muted: #5e6b7a;
+  --rule: #d3dbe3;
+  --range: #2e6da4;
+  --range-fill: rgba(46, 109, 164, 0.16);
+  --outcome: #a86400;
+  --focus: #2e6da4;
+  box-sizing: border-box;
+  padding-top: env(safe-area-inset-top, 0px);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --paper: #111820;
+    --surface: #18222c;
+    --ink: #e4ebf2;
+    --muted: #9aa8b6;
+    --rule: #2c3a48;
+    --range: #6fa8dc;
+    --range-fill: rgba(111, 168, 220, 0.2);
+    --outcome: #e0a040;
+    --focus: #6fa8dc;
+  }
+}
+:root[data-theme="dark"] {
+  --paper: #111820; --surface: #18222c; --ink: #e4ebf2; --muted: #9aa8b6;
+  --rule: #2c3a48; --range: #6fa8dc; --range-fill: rgba(111, 168, 220, 0.2);
+  --outcome: #e0a040; --focus: #6fa8dc;
+}
+*, *::before, *::after { box-sizing: inherit; }
+html { scroll-padding-top: env(safe-area-inset-top, 0px); }
+
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: "Public Sans", "Segoe UI", system-ui, -apple-system, sans-serif;
+  font-size: 1rem;
+  line-height: 1.55;
+  font-variant-numeric: tabular-nums;
+}
+
+.top {
+  display: flex; align-items: center; justify-content: space-between; gap: 1rem;
+  max-width: 68rem; margin: 0 auto; padding: 1.25rem 1.5rem;
+}
+.brand { margin: 0; font-weight: 700; letter-spacing: -0.01em; }
+
+.picker { display: inline-flex; align-items: center; gap: 0.5rem; color: var(--muted); font-size: 0.9rem; }
+.picker.inline { margin: 0.5rem 0 1rem; }
+select {
+  font: inherit; color: var(--ink); background: var(--surface);
+  border: 1px solid var(--rule); border-radius: 6px; padding: 0.35rem 0.6rem;
+}
+
+.demo-banner {
+  max-width: 68rem; margin: 0 auto 0.5rem; padding: 0.5rem 1.5rem;
+  color: var(--outcome); font-weight: 600; font-size: 0.9rem;
+}
+
+main { max-width: 68rem; margin: 0 auto; padding: 0 1.5rem; }
+section { padding: 2.5rem 0; border-top: 1px solid var(--rule); }
+section.hero { border-top: 0; padding-top: 1rem; }
+
+.asof { margin: 0 0 0.5rem; color: var(--muted); }
+h1 {
+  margin: 0 0 1.5rem;
+  font-size: clamp(1.6rem, 1.1rem + 2.2vw, 2.6rem);
+  line-height: 1.2; font-weight: 500; letter-spacing: -0.02em;
+  max-width: 34ch;
+}
+h1 .num { font-weight: 700; }
+h1 .range { color: var(--range); font-weight: 700; }
+h2 { margin: 0 0 0.75rem; font-size: 1.35rem; font-weight: 700; letter-spacing: -0.01em; }
+.lede { margin: 0 0 1rem; max-width: 65ch; color: var(--muted); }
+.note { margin: 0.75rem 0 0; max-width: 70ch; color: var(--muted); font-size: 0.875rem; }
+
+.controls { display: flex; flex-wrap: wrap; gap: 0.75rem 1.5rem; margin-bottom: 1.25rem; }
+.seg { display: inline-flex; max-width: 100%; overflow-x: auto; border: 1px solid var(--rule); border-radius: 8px; overflow: hidden; background: var(--surface); }
+.seg button {
+  font: inherit; font-size: 0.9rem; color: var(--muted); background: transparent;
+  border: 0; border-right: 1px solid var(--rule); padding: 0.45rem 0.85rem; cursor: pointer;
+  white-space: nowrap;
+}
+.seg button:last-child { border-right: 0; }
+.seg button[aria-pressed="true"] { background: var(--ink); color: var(--paper); font-weight: 600; }
+button:focus-visible, select:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+
+.chart-wrap { position: relative; height: 320px; }
+.chart-wrap.tall { height: 400px; }
+@media (max-width: 640px) {
+  .chart-wrap, .chart-wrap.tall { height: 280px; }
+  .seg { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; width: 100%; }
+  .seg button { padding: 0.45rem 0.25rem; font-size: 0.8rem; white-space: normal; line-height: 1.25; }
+}
+
+.table-wrap { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; font-size: 0.95rem; min-width: 34rem; }
+th, td { text-align: right; padding: 0.55rem 0.75rem; border-bottom: 1px solid var(--rule); white-space: nowrap; }
+th:first-child, td:first-child { text-align: left; }
+th { color: var(--muted); font-weight: 600; font-size: 0.85rem; }
+tr.selected td { background: var(--range-fill); }
+td.good { color: var(--range); font-weight: 600; }
+
+footer {
+  max-width: 68rem; margin: 0 auto; padding: 2rem 1.5rem 3rem;
+  border-top: 1px solid var(--rule); color: var(--muted); font-size: 0.875rem;
+}
+footer p { max-width: 70ch; margin: 0 0 0.5rem; }
+.error { color: var(--outcome); font-weight: 600; }

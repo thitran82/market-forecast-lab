@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Market Forecast Lab</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📈</text></svg>">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="top">
+    <p class="brand">Market Forecast Lab</p>
+    <label class="picker">Stock
+      <select id="ticker" aria-label="Choose a stock"></select>
+    </label>
+  </header>
+
+  <p class="demo-banner" id="demo-banner" hidden>
+    Demo mode: these are synthetic prices, not real market data.
+  </p>
+
+  <main>
+    <section class="hero">
+      <p class="asof" id="asof"></p>
+      <h1 id="headline">Loading forecasts…</h1>
+      <div class="controls">
+        <div class="seg" role="group" aria-label="Time frame" id="horizons"></div>
+        <div class="seg" role="group" aria-label="Model" id="models"></div>
+      </div>
+      <div class="chart-wrap tall"><canvas id="fan" aria-label="Recent prices and forecast ranges"></canvas></div>
+      <p class="note" id="fan-note"></p>
+    </section>
+
+    <section>
+      <h2>All time frames</h2>
+      <div class="table-wrap"><table id="horizon-table"></table></div>
+      <p class="note">
+        "Past error vs. no-change guess" compares the model's error on a recent test period
+        with a guess that the price stays the same. Below 1.00 means the model did better.
+      </p>
+    </section>
+
+    <section>
+      <h2>How one forecast changed as the day got closer</h2>
+      <p class="lede">
+        Pick a target day. Each point is a forecast for that same day, made on an earlier day.
+        Early forecasts are made with less information, so their ranges are wider.
+        Dashed lines mark company filings.
+      </p>
+      <label class="picker inline">Target day
+        <select id="target" aria-label="Choose a target day"></select>
+      </label>
+      <div class="chart-wrap"><canvas id="revision" aria-label="Forecast revisions for one target day"></canvas></div>
+      <p class="note" id="revision-note"></p>
+    </section>
+
+    <section>
+      <h2>Track record</h2>
+      <p class="lede">Forecasts whose target day has passed, checked against the real closing price.</p>
+      <div class="table-wrap" id="track"></div>
+    </section>
+  </main>
+
+  <footer>
+    <p>
+      Built for teaching. This is not investment advice. Future events can change prices in
+      ways no model can see, so use these numbers to stay informed, not to trade.
+    </p>
+    <p id="sources">Prices: daily closes (split and dividend adjusted). Company numbers: SEC EDGAR filings.</p>
+  </footer>
+
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
