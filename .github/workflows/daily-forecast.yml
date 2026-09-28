@@ -1,0 +1,50 @@
+name: Daily forecast
+
+on:
+  schedule:
+    # 22:30 UTC on weekdays = 6:30 pm New York (EDT), after the market close.
+    - cron: "30 22 * * 1-5"
+  workflow_dispatch:
+    inputs:
+      backfill:
+        description: "Also re-create forecasts for the past N trading days (0 = today only)"
+        default: "0"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: daily-forecast
+  cancel-in-progress: false
+
+jobs:
+  forecast:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install packages
+        run: pip install -r requirements.txt
+
+      - name: Run pipeline
+        env:
+          SEC_USER_AGENT: ${{ secrets.SEC_USER_AGENT }}
+        run: python -m pipeline.run_daily --backfill "${{ github.event.inputs.backfill || '0' }}"
+
+      - name: Save results to the repo (this triggers a Vercel deploy)
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add web/data
+          if git diff --cached --quiet; then
+            echo "No changes."
+          else
+            git commit -m "Forecasts for $(date -u +%F)"
+            git push
+          fi
