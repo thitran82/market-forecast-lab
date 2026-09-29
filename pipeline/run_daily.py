@@ -127,8 +127,10 @@ def main():
         for f in (data / "forecasts").glob("*.json"):
             f.unlink()
         (data / "meta.json").unlink()
+        (data / "latest.json").unlink(missing_ok=True)
 
     meta_rows, failed = [], []
+    latest_rows = {}   # newest forecasts of every stock, for the sector comparison
     for t in args.tickers:
         print(f"{t}:")
         try:
@@ -175,9 +177,17 @@ def main():
             "close": [round(float(x), 2) for x in web["close"]],
             "filings": [f for f in filings if f >= _date(web.index[0])],
         })
-        meta_rows.append({"ticker": t, "last_date": _date(last_date), "last_close": round(last_close, 2),
+        latest_rows[t] = [r for r in store if r["run_date"] == _date(last_date)]
+        name, sector = config.STOCKS.get(t, (t, "Other"))
+        meta_rows.append({"ticker": t, "name": name, "sector": sector,
+                          "last_date": _date(last_date), "last_close": round(last_close, 2),
                           "has_fundamentals": not fund.empty, "metrics": metrics})
         print(f"  done: {len(store)} forecasts stored")
+
+    # Newest forecasts for all stocks in one small file (the sector table reads only this).
+    latest = load_json(data / "latest.json", {})
+    latest.update(latest_rows)
+    save_json(data / "latest.json", {t: latest[t] for t in latest if t in config.TICKERS or t in latest_rows})
 
     # Keep entries for tickers that were not part of this run (e.g. a partial run).
     old = {r["ticker"]: r for r in load_json(data / "meta.json", {}).get("tickers", [])}

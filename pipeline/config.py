@@ -2,8 +2,34 @@
 import os
 from pathlib import Path
 
-# Stocks to forecast. SPY (S&P 500 ETF) is also used as the "market" input.
-TICKERS = ["AAPL", "MSFT", "NVDA", "AMZN", "JPM", "JNJ", "XOM", "WMT", "KO", "SPY"]
+# Stocks to forecast: ticker -> (company name, sector). One or more per sector.
+# SPY (S&P 500 ETF) is also used as the "market" input for every model.
+STOCKS = {
+    "AAPL": ("Apple", "Technology"),
+    "MSFT": ("Microsoft", "Technology"),
+    "NVDA": ("NVIDIA", "Technology"),
+    "GOOGL": ("Alphabet", "Communication"),
+    "META": ("Meta Platforms", "Communication"),
+    "AMZN": ("Amazon", "Consumer discretionary"),
+    "TSLA": ("Tesla", "Consumer discretionary"),
+    "HD": ("Home Depot", "Consumer discretionary"),
+    "WMT": ("Walmart", "Consumer staples"),
+    "KO": ("Coca-Cola", "Consumer staples"),
+    "PG": ("Procter & Gamble", "Consumer staples"),
+    "JPM": ("JPMorgan Chase", "Financials"),
+    "BAC": ("Bank of America", "Financials"),
+    "V": ("Visa", "Financials"),
+    "JNJ": ("Johnson & Johnson", "Health care"),
+    "UNH": ("UnitedHealth", "Health care"),
+    "XOM": ("ExxonMobil", "Energy"),
+    "CVX": ("Chevron", "Energy"),
+    "CAT": ("Caterpillar", "Industrials"),
+    "NEE": ("NextEra Energy", "Utilities"),
+    "LIN": ("Linde", "Materials"),
+    "PLD": ("Prologis", "Real estate"),
+    "SPY": ("S&P 500 index fund", "Market"),
+}
+TICKERS = list(STOCKS)
 MARKET = "SPY"
 
 # Forecast horizons in TRADING days (about 21 trading days per month).
