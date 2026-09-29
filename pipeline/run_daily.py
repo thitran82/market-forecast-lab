@@ -15,8 +15,16 @@ import json
 import math
 from datetime import datetime, timezone
 
+import warnings
+
 import numpy as np
 import pandas as pd
+
+# scikit-learn 1.8 prints this harmless warning thousands of times when gradient
+# boosting uses several CPU cores (as on GitHub's servers). It floods the log and
+# can hide real errors, so we silence this one message only.
+warnings.filterwarnings(
+    "ignore", message=r".*sklearn\.utils\.parallel\.delayed.*", category=UserWarning)
 
 from . import config
 from .features import build_features

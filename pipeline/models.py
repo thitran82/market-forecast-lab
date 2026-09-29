@@ -87,7 +87,12 @@ def fit_horizon(feats: pd.DataFrame, close: pd.Series, h: int, interval: float):
                 "hit_rate": (float(np.mean(np.sign(pred_te) == np.sign(yte.to_numpy())))
                              if full is not None else None),
                 "n_features": len(cols),
+            "train_start": str(Xtr.index[0].date()),
+            "train_end": str(Xtr.index[-1].date()),
+            "train_days": int(len(Xtr)),
+            "gap_days": int(h),
             "test_start": str(Xte.index[0].date()),
+            "test_end": str(Xte.index[-1].date()),
                 "test_days": int(len(Xte)),
             },
         }
