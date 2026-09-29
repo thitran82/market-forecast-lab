@@ -1,5 +1,8 @@
-pandas>=2.2
-numpy>=1.26
-scikit-learn>=1.4
-yfinance>=0.2.40
+# Pinned to the versions this project was tested with, so a new library
+# release cannot silently change results or break the daily job.
+pandas==3.0.2
+numpy==2.4.4
+scikit-learn==1.8.0
 requests>=2.31
+# yfinance is left unpinned on purpose: it must keep up with changes on Yahoo's side.
+yfinance>=0.2.40
