@@ -53,7 +53,10 @@ def fit_horizon(feats: pd.DataFrame, close: pd.Series, h: int, interval: float):
 
     fitted = {}
     for name, spec in MODELS.items():
-        cols = spec["features"]
+        # Skip columns with fewer than 2 distinct values in the training data
+        # (e.g. a company that never reports total liabilities). They carry no
+        # information, and some scikit-learn versions crash on them.
+        cols = [c for c in spec["features"] if Xtr[c].nunique(dropna=True) >= 2]
         if spec["make"] is None:
             pred_te, full = np.zeros(len(yte)), None
         else:

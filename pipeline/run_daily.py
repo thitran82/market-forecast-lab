@@ -9,6 +9,8 @@ Every run ADDS forecasts ("vintages") to web/data/forecasts/<TICKER>.json.
 Old forecasts are never overwritten, so the site can show how forecasts changed.
 """
 import argparse
+import sys
+import traceback
 import json
 import math
 from datetime import datetime, timezone
@@ -121,13 +123,14 @@ def main():
             f.unlink()
         (data / "meta.json").unlink()
 
-    meta_rows = []
+    meta_rows, failed = [], []
     for t in args.tickers:
         print(f"{t}:")
         try:
             prices = market if t == config.MARKET else get_prices(t, config.HISTORY_YEARS, args.demo)
         except Exception as e:
             print(f"  SKIPPED (no prices): {e}")
+            failed.append(t)
             continue
 
         fund = EMPTY.copy()
@@ -142,13 +145,19 @@ def main():
         store = load_json(path, {"ticker": t, "vintages": []})["vintages"]
         run_dates = prices.index[-(args.backfill + 1):] if args.backfill else prices.index[-1:]
         metrics, last_date, last_close, cache = {}, None, None, {}
-        for i, d in enumerate(run_dates):
-            is_last = i == len(run_dates) - 1
-            # Backfill days reuse models for up to 5 days; the latest day always refits.
-            last_date, last_close, rows, metrics = forecast_one(
-                prices, market, fund, as_of=d, cache=cache,
-                refit_every=1 if is_last else config.BACKFILL_REFIT_EVERY, live=is_last)
-            store = merge_vintages(store, rows)
+        try:
+            for i, d in enumerate(run_dates):
+                is_last = i == len(run_dates) - 1
+                # Backfill days reuse models for up to 5 days; the latest day always refits.
+                last_date, last_close, rows, metrics = forecast_one(
+                    prices, market, fund, as_of=d, cache=cache,
+                    refit_every=1 if is_last else config.BACKFILL_REFIT_EVERY, live=is_last)
+                store = merge_vintages(store, rows)
+        except Exception:
+            print(f"  FAILED while forecasting {t}; other stocks continue:")
+            traceback.print_exc()
+            failed.append(t)
+            continue
         save_json(path, {"ticker": t, "vintages": store})
 
         web = prices.iloc[-config.WEB_PRICE_DAYS:]
@@ -177,6 +186,11 @@ def main():
         "models": list(MODELS.keys()),
         "tickers": meta_rows,
     })
+
+    if failed:
+        print(f"Finished with problems. Failed: {', '.join(failed)}")
+    if not meta_rows:
+        sys.exit("No stock was forecast successfully.")   # fail the job only if everything failed
 
 
 if __name__ == "__main__":
