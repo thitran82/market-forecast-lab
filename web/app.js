@@ -40,6 +40,21 @@ const markerPlugin = {
   },
 };
 
+// Paints a solid background behind each chart. Without it the canvas is transparent,
+// and dark-mode extensions that darken the page make the chart lines unreadable.
+const backgroundPlugin = {
+  id: "solidBackground",
+  beforeDraw(chart) {
+    const { ctx, width, height } = chart;
+    ctx.save();
+    ctx.globalCompositeOperation = "destination-over";
+    ctx.fillStyle = css("--paper");
+    ctx.fillRect(0, 0, width, height);
+    ctx.restore();
+  },
+};
+Chart.register(backgroundPlugin);
+
 // ---------- data helpers ----------
 // Weekdays after `start` up to and including `end` (YYYY-MM-DD strings), so charts keep real time spacing.
 function weekdaysAfter(start, end) {
