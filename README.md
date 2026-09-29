@@ -5,7 +5,6 @@ shows a range for each forecast, and records every forecast so you can see how i
 target day got closer.
 
 **For teaching only. Not investment advice.** Future events can move prices in ways no model can see.
-The MIT license covers the code only. Price data from Yahoo (via yfinance) stays under Yahoo's terms; SEC EDGAR data is public.
 
 ## How it works
 
@@ -23,7 +22,7 @@ Vercel (redeploys on every commit)
 
 | Folder / file | What it does |
 |---|---|
-| `pipeline/config.py` | Tickers, time frames, range width. Change settings here only. |
+| `pipeline/config.py` | Stock list with names and sectors, time frames, range width. Change settings here only. |
 | `pipeline/fetch_prices.py` | Daily prices, with a backup source and a demo (synthetic) mode. |
 | `pipeline/fetch_fundamentals.py` | Quarterly company numbers from SEC EDGAR. |
 | `pipeline/features.py` | Turns prices and filings into one row of features per day. |
@@ -65,10 +64,13 @@ cd web && python -m http.server 8000                # open http://localhost:8000
   volume trend, and market (SPY) returns and volatility.
 - **Fundamental features:** revenue growth vs. the same quarter last year, net margin, diluted EPS,
   liabilities to assets, and days since the last filing.
-- **Models:**
+- **Methods:**
   - *No-change guess* (naive): the price stays the same. Every model must beat this.
-  - *Ridge regression*: linear model on price features.
-  - *Gradient boosting*: tree model on price and fundamental features.
+  - *Ridge regression*: linear model (missing values filled with the training median).
+  - *Gradient boosting*: tree model that can capture non-linear effects.
+- **Inputs:** ridge and gradient boosting each run on three input sets, so users can see
+  whether more information helps: *own price history*, *+ market (SPY)*, and *+ company filings*.
+  With the no-change guess, that makes 7 variants per stock and time frame.
 - **Backtest:** the last 20% of the history is held out as a test period, with a gap of h days so
   training and test targets never overlap.
 - **Range:** the 10th and 90th percentiles of each model's test errors (split conformal prediction).
@@ -83,9 +85,9 @@ cd web && python -m http.server 8000                # open http://localhost:8000
    because that is what investors knew at the time.
 2. **Baselines matter.** On the demo (random-walk) data, both ML models lose to the no-change guess.
    That is correct: there is nothing to predict. If a model "beats" a random walk, look for a leak.
-3. **Match data to the time frame.** Fundamentals change four times a year, so they can help the
-   1- and 3-month forecasts more than the 3-day ones. Compare Ridge (prices only) with gradient
-   boosting (prices + fundamentals) at each time frame.
+3. **Does more information help?** The site's comparison table shows every method with each
+   input set. Fundamentals change four times a year, so they may help 1- and 3-month forecasts more
+   than 3-day ones. If adding inputs does not lower the past error, that information did not help.
 4. **Live vs. reconstructed forecasts.** Backfilled forecasts are made later with today's data
    (adjusted prices, models refit weekly). They are tagged `live: false`, and the site says how many
    of the checked forecasts were reconstructed.
@@ -103,6 +105,14 @@ cd web && python -m http.server 8000                # open http://localhost:8000
 
 ## Change the setup
 
-Edit `pipeline/config.py`: `TICKERS`, `HORIZONS` (in trading days), `INTERVAL` (e.g. 0.90 for a 90% range).
-To add a model, add an entry to `MODELS` in `pipeline/models.py`; the site picks it up from `meta.json`
-(add a display name in `MODEL_NAMES` in `web/app.js`).
+Edit `pipeline/config.py`:
+- `STOCKS`: ticker → (company name, sector). Add or remove lines to change the stock list;
+  the website's Sector and Stock menus follow automatically. After adding stocks, run the
+  workflow with backfill 80 so they get forecast history.
+- `HORIZONS` (in trading days) and `INTERVAL` (e.g. 0.90 for a 90% range).
+
+To add a model, add an entry to `ALGORITHMS` in `pipeline/models.py`; it runs on all three
+input sets. Add a display name in `ALGO_NAMES` in `web/app.js`.
+
+Each stock adds about 5–10 seconds to the daily run and about 1.3 MB of forecast data per year.
+Keep the list to a few dozen stocks: Yahoo may throttle many requests, and the dropdown gets long.
