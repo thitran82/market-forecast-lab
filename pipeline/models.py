@@ -1,10 +1,18 @@
-"""Three models, compared honestly on the same recent test period.
+"""Seven model variants, compared honestly on the same recent test period.
 
 Target: log return from today's close to the close h trading days later.
 
+Methods:
 - naive: predicts no change (random walk). The baseline every model must beat.
-- ridge: linear regression on price features.
-- gbm:   gradient boosting on price AND fundamental features (handles missing values).
+- ridge: linear regression (missing values filled with the training median).
+- gbm:   gradient boosting (handles missing values itself).
+
+Inputs (see features.FEATURE_SETS), for ridge and gbm:
+- price:        the stock's own price history
+- price_market: + market (SPY) context
+- all:          + company filings
+
+Model ids look like "gbm:all" or "ridge:price". The naive model is just "naive".
 
 Forecast range: we look at the model's errors on the test period and take the
 10th and 90th percentiles (for an 80% range). This is "split conformal"
@@ -13,21 +21,27 @@ prediction: the range is as wide as the model's real past mistakes.
 import numpy as np
 import pandas as pd
 from sklearn.ensemble import HistGradientBoostingRegressor
+from sklearn.impute import SimpleImputer
 from sklearn.linear_model import Ridge
 from sklearn.pipeline import make_pipeline
 from sklearn.preprocessing import StandardScaler
 
-from .features import FUND_FEATURES, PRICE_FEATURES
+from .features import FEATURE_SETS, PRICE_FEATURES
 
-MODELS = {
-    "naive": {"features": [], "make": None},
-    "ridge": {"features": PRICE_FEATURES,
-              "make": lambda: make_pipeline(StandardScaler(), Ridge(alpha=10.0))},
-    "gbm": {"features": PRICE_FEATURES + FUND_FEATURES,
-            "make": lambda: HistGradientBoostingRegressor(
-                max_iter=200, learning_rate=0.05, max_depth=3,
-                min_samples_leaf=40, l2_regularization=1.0, random_state=0)},
+ALGORITHMS = {
+    "ridge": lambda: make_pipeline(SimpleImputer(strategy="median"), StandardScaler(), Ridge(alpha=10.0)),
+    "gbm": lambda: HistGradientBoostingRegressor(
+        max_iter=200, learning_rate=0.05, max_depth=3,
+        min_samples_leaf=40, l2_regularization=1.0, random_state=0),
 }
+
+MODELS = {"naive": {"features": [], "make": None}}
+for _algo, _make in ALGORITHMS.items():
+    for _set, _cols in FEATURE_SETS.items():
+        MODELS[f"{_algo}:{_set}"] = {"features": _cols, "make": _make}
+
+# Older versions stored only two models; map their names to the new ids.
+LEGACY_IDS = {"ridge": "ridge:price_market", "gbm": "gbm:all"}
 MIN_ROWS = 300
 TEST_SHARE = 0.2
 
@@ -72,7 +86,8 @@ def fit_horizon(feats: pd.DataFrame, close: pd.Series, h: int, interval: float):
                 "mae_vs_naive": mae / naive_mae if naive_mae > 0 else None,
                 "hit_rate": (float(np.mean(np.sign(pred_te) == np.sign(yte.to_numpy())))
                              if full is not None else None),
-                "test_start": str(Xte.index[0].date()),
+                "n_features": len(cols),
+            "test_start": str(Xte.index[0].date()),
                 "test_days": int(len(Xte)),
             },
         }

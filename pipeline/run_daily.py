@@ -23,7 +23,7 @@ from .features import build_features
 from .fetch_fundamentals import EMPTY, fetch_fundamentals, load_cik_map, synthetic_fundamentals
 from .fetch_prices import get_prices
 from .features import PRICE_FEATURES
-from .models import MODELS, fit_horizon, predict_horizon
+from .models import LEGACY_IDS, MODELS, fit_horizon, predict_horizon
 
 
 def _date(ts) -> str:
@@ -87,15 +87,20 @@ def save_json(path, obj):
 
 
 def merge_vintages(store: list, rows: list) -> list:
-    """Replace forecasts from the same run date (safe re-runs), keep everything else.
+    """Add new forecasts, one per (run date, horizon, model).
 
-    A live forecast is never replaced by a reconstructed (backfill) one.
+    A new forecast replaces an old one with the same key (safe re-runs),
+    except that a live forecast is never replaced by a reconstructed (backfill) one.
     """
-    live_dates = {r["run_date"] for r in store if r.get("live")}
-    rows = [r for r in rows if r["live"] or r["run_date"] not in live_dates]
-    run_dates = {r["run_date"] for r in rows}
-    kept = [r for r in store if r["run_date"] not in run_dates]
-    return sorted(kept + rows, key=lambda r: (r["run_date"], r["h"], r["model"]))
+    def key(r):
+        return (r["run_date"], r["horizon"], r["model"])
+    merged = {key(r): r for r in store}
+    for r in rows:
+        old = merged.get(key(r))
+        if old is not None and old.get("live") and not r["live"]:
+            continue
+        merged[key(r)] = r
+    return sorted(merged.values(), key=lambda r: (r["run_date"], r["h"], r["model"]))
 
 
 def main():
@@ -143,6 +148,8 @@ def main():
 
         path = data / "forecasts" / f"{t}.json"
         store = load_json(path, {"ticker": t, "vintages": []})["vintages"]
+        for r in store:   # rename models saved by older versions
+            r["model"] = LEGACY_IDS.get(r["model"], r["model"])
         run_dates = prices.index[-(args.backfill + 1):] if args.backfill else prices.index[-1:]
         metrics, last_date, last_close, cache = {}, None, None, {}
         try:

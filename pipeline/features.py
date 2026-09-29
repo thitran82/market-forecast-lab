@@ -5,14 +5,25 @@ Every feature on day t uses only information available at the close of day t.
 import numpy as np
 import pandas as pd
 
-PRICE_FEATURES = [
+# Three groups of inputs. The website lets users compare models that see
+# only the first group, the first two, or all three.
+OWN_FEATURES = [
     "ret_1", "ret_5", "ret_10", "ret_21", "ret_63",   # past log returns
     "vol_21", "vol_63",                                # recent volatility
     "ma_gap_50", "ma_gap_200",                         # distance from moving averages
     "volume_trend",                                    # 5-day vs 21-day average volume
-    "mkt_ret_5", "mkt_ret_21", "mkt_vol_21",           # market (SPY) context
 ]
+MARKET_FEATURES = ["mkt_ret_5", "mkt_ret_21", "mkt_vol_21"]   # market (SPY) context
 FUND_FEATURES = ["rev_yoy", "net_margin", "eps_diluted", "liab_to_assets", "days_since_filing"]
+
+# All price-based features; a day is usable only when these are all known.
+PRICE_FEATURES = OWN_FEATURES + MARKET_FEATURES
+
+FEATURE_SETS = {
+    "price": OWN_FEATURES,                                        # own price history
+    "price_market": OWN_FEATURES + MARKET_FEATURES,               # + market
+    "all": OWN_FEATURES + MARKET_FEATURES + FUND_FEATURES,        # + company filings
+}
 FUND_METRICS = ["revenue", "net_income", "eps_diluted", "assets", "liabilities", "rev_yoy"]
 
 
