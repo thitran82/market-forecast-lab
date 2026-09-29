@@ -17,9 +17,14 @@
 <body>
   <header class="top">
     <p class="brand">Market Forecast Lab</p>
-    <label class="picker">Stock
-      <select id="ticker" aria-label="Choose a stock"></select>
-    </label>
+    <div class="pickers">
+      <label class="picker">Sector
+        <select id="sector" aria-label="Choose a sector"></select>
+      </label>
+      <label class="picker">Stock
+        <select id="ticker" aria-label="Choose a stock"></select>
+      </label>
+    </div>
   </header>
 
   <p class="demo-banner" id="demo-banner" hidden>
@@ -40,6 +45,17 @@
       </div>
       <div class="chart-wrap tall"><canvas id="fan" aria-label="Recent prices and forecast ranges"></canvas></div>
       <p class="note" id="fan-note"></p>
+    </section>
+
+    <section>
+      <h2 id="group-title">Compare stocks</h2>
+      <p class="lede">
+        Every stock in the chosen sector, for the time frame, method, and inputs selected above.
+        Values are in percent from each stock's latest close, so stocks with different prices can be
+        compared. Click a row to open that stock.
+      </p>
+      <p class="summary" id="group-summary"></p>
+      <div class="table-wrap"><table id="group-table"></table></div>
     </section>
 
     <section>

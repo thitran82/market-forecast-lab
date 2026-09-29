@@ -24,7 +24,8 @@ function shortModel(id) {
 }
 const HISTORY_DAYS = 126; // trading days of past prices on the main chart
 
-const state = { meta: null, ticker: null, algo: "gbm", inputs: "all", horizon: "1m", prices: null, vintages: [], target: null };
+const ALL_SECTORS = "All sectors";
+const state = { meta: null, latest: null, sector: ALL_SECTORS, ticker: null, algo: "gbm", inputs: "all", horizon: "1m", prices: null, vintages: [], target: null };
 // The selected model id, e.g. "gbm:all" or "naive".
 Object.defineProperty(state, "model", {
   get() { return this.algo === "naive" ? "naive" : `${this.algo}:${this.inputs}`; },
@@ -33,6 +34,7 @@ const charts = {};
 
 const $ = (id) => document.getElementById(id);
 const money = (v) => "$" + Number(v).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const pctText = (v) => (v >= 0 ? "+" : "−") + Math.abs(v * 100).toFixed(1) + "%";
 const niceDate = (s) => new Date(s + "T00:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
 const shortDate = (s) => new Date(s + "T00:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric" });
 const css = (name) => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
@@ -232,6 +234,77 @@ function renderCompare() {
     : `${HORIZON_NAMES[state.horizon]} ahead, from the close on ${niceDate(run)}. Past error is measured on the same recent test period for every row.`;
 }
 
+// ---------- sector comparison ----------
+function tickersInSector() {
+  return state.meta.tickers.filter((t) => state.sector === ALL_SECTORS || t.sector === state.sector);
+}
+
+function renderGroup() {
+  const group = tickersInSector();
+  $("group-title").textContent = state.sector === ALL_SECTORS ? "Compare all stocks" : `Compare stocks: ${state.sector}`;
+  if (!state.latest) {
+    $("group-table").innerHTML = "";
+    $("group-summary").textContent = "This table appears after the next pipeline run.";
+    return;
+  }
+  const model = state.model, h = state.horizon;
+  const head = `<thead><tr><th>Stock</th><th>Sector</th><th>Close</th><th>Low</th><th>Forecast</th>
+    <th>High</th><th>Past error vs. no-change guess</th></tr></thead>`;
+  const body = group.map((t) => {
+    const r = (state.latest[t.ticker] || []).find((x) => x.model === model && x.horizon === h);
+    const ratio = t.metrics?.[h]?.[model]?.mae_vs_naive;
+    if (!r) return `<tr><td>${t.ticker}</td><td>${t.sector || ""}</td><td colspan="5">No forecast yet</td></tr>`;
+    const chg = (v) => v / r.base - 1;
+    const dir = chg(r.point) >= 0 ? "up" : "down";
+    return `<tr class="clickable ${t.ticker === state.ticker ? "selected" : ""}" data-ticker="${t.ticker}" tabindex="0">
+      <td><strong>${t.ticker}</strong> <span class="muted">${t.name || ""}</span></td><td>${t.sector || ""}</td>
+      <td>${money(r.base)}</td><td>${pctText(chg(r.lo))}</td><td class="${dir}">${pctText(chg(r.point))}</td>
+      <td>${pctText(chg(r.hi))}</td>
+      <td class="${ratio != null && ratio < 1 ? "good" : ""}">${ratio == null ? "–" : ratio.toFixed(2)}</td></tr>`;
+  }).join("");
+  $("group-table").innerHTML = head + `<tbody>${body}</tbody>`;
+  $("group-summary").textContent = groupSummary(group, h);
+}
+
+// Plain-language summary: does the model beat the baseline, and do extra inputs help, in this group?
+function groupSummary(group, h) {
+  if (state.algo === "naive") {
+    return "The no-change guess is the baseline. Pick ridge regression or gradient boosting to see how often a model beats it in this group.";
+  }
+  const algo = state.algo, name = ALGO_NAMES[algo].toLowerCase();
+  const m = (t, inputs) => t.metrics?.[h]?.[`${algo}:${inputs}`];
+  const withData = group.filter((t) => m(t, state.inputs));
+  if (!withData.length) return "";
+  const beat = withData.filter((t) => m(t, state.inputs).mae_vs_naive < 1).length;
+  const mkt = group.filter((t) => m(t, "price") && m(t, "price_market"));
+  const mktHelped = mkt.filter((t) => m(t, "price_market").mae < m(t, "price").mae).length;
+  // Only stocks where filings actually added inputs (not SPY or stocks with missing filings).
+  const fil = group.filter((t) => m(t, "price_market") && m(t, "all") && m(t, "all").n_features > m(t, "price_market").n_features);
+  const filHelped = fil.filter((t) => m(t, "all").mae < m(t, "price_market").mae).length;
+  let text = `${HORIZON_NAMES[h]} ahead, ${name} with "${INPUT_NAMES[state.inputs]}" beat the no-change guess for ` +
+    `${beat} of ${withData.length} stocks. Adding market data lowered its past error for ${mktHelped} of ${mkt.length}`;
+  text += fil.length ? `, and adding company filings for ${filHelped} of ${fil.length}.` : ".";
+  return text;
+}
+
+function renderSectorSelect() {
+  const sectors = [ALL_SECTORS, ...new Set(state.meta.tickers.map((t) => t.sector || "Other"))];
+  $("sector").innerHTML = sectors.map((x) => `<option ${x === state.sector ? "selected" : ""}>${x}</option>`).join("");
+}
+
+function renderTickerSelect() {
+  const group = tickersInSector();
+  const opt = (t) => `<option value="${t.ticker}" ${t.ticker === state.ticker ? "selected" : ""}>${t.ticker}${t.name ? " — " + t.name : ""}</option>`;
+  if (state.sector !== ALL_SECTORS) {
+    $("ticker").innerHTML = group.map(opt).join("");
+    return;
+  }
+  const bySector = {};
+  group.forEach((t) => (bySector[t.sector || "Other"] ||= []).push(t));
+  $("ticker").innerHTML = Object.entries(bySector)
+    .map(([sec, ts]) => `<optgroup label="${sec}">${ts.map(opt).join("")}</optgroup>`).join("");
+}
+
 function targetOptions() {
   const counts = {};
   rowsFor({}).forEach((r) => { counts[r.target_date] = (counts[r.target_date] || 0) + 1; });
@@ -356,6 +429,7 @@ function renderAll() {
   renderControls();
   renderHero();
   renderFan();
+  renderGroup();
   renderTable();
   renderCompare();
   renderTargetSelect();
@@ -367,6 +441,7 @@ function renderAll() {
 async function loadTicker(t) {
   state.ticker = t;
   history.replaceState(null, "", "#" + t);
+  renderTickerSelect();
   try {
     const [prices, fc] = await Promise.all([getJSON(`data/prices/${t}.json`), getJSON(`data/forecasts/${t}.json`)]);
     state.prices = prices;
@@ -399,6 +474,23 @@ $("compare-table").addEventListener("keydown", (e) => {
   if (tr && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); selectModel(tr.dataset.model); }
 });
 $("ticker").addEventListener("change", (e) => loadTicker(e.target.value));
+$("sector").addEventListener("change", (e) => {
+  state.sector = e.target.value;
+  const group = tickersInSector();
+  const next = group.some((t) => t.ticker === state.ticker) ? state.ticker : group[0].ticker;
+  renderTickerSelect();
+  loadTicker(next);
+});
+function openTickerRow(e) {
+  const tr = e.target.closest("tr[data-ticker]");
+  if (!tr) return;
+  if (e.type === "keydown" && e.key !== "Enter" && e.key !== " ") return;
+  e.preventDefault();
+  loadTicker(tr.dataset.ticker);
+  window.scrollTo({ top: 0, behavior: "smooth" });
+}
+$("group-table").addEventListener("click", openTickerRow);
+$("group-table").addEventListener("keydown", openTickerRow);
 $("target").addEventListener("change", (e) => { state.target = e.target.value; renderRevision(); });
 window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => state.prices && renderAll());
 
@@ -417,10 +509,17 @@ window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () 
       });
     });
   });
+  try {
+    state.latest = await getJSON("data/latest.json");
+  } catch {
+    state.latest = null; // older data: the sector table waits for the next pipeline run
+  }
+  if (state.latest) {   // rename models saved by older versions
+    Object.values(state.latest).forEach((rows) => rows.forEach((v) => { v.model = LEGACY_IDS[v.model] || v.model; }));
+  }
   const tickers = state.meta.tickers.map((t) => t.ticker);
-  $("ticker").innerHTML = tickers.map((t) => `<option>${t}</option>`).join("");
   const fromHash = location.hash.slice(1).toUpperCase();
   const start = tickers.includes(fromHash) ? fromHash : tickers[0];
-  $("ticker").value = start;
+  renderSectorSelect();
   loadTicker(start);
 })();
