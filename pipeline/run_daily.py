@@ -8,6 +8,14 @@ Usage:
 Every run ADDS forecasts ("vintages") to web/data/forecasts/<TICKER>.json.
 Old forecasts are never overwritten, so the site can show how forecasts changed.
 """
+import os
+
+# Use one CPU thread for the models. With several threads (as on GitHub's servers),
+# scikit-learn 1.8 prints a harmless warning thousands of times, which floods the log
+# and can hide real errors. The models are small, so this costs little time.
+# This must run before scikit-learn is imported.
+os.environ.setdefault("OMP_NUM_THREADS", "1")
+
 import argparse
 import sys
 import traceback
@@ -15,16 +23,8 @@ import json
 import math
 from datetime import datetime, timezone
 
-import warnings
-
 import numpy as np
 import pandas as pd
-
-# scikit-learn 1.8 prints this harmless warning thousands of times when gradient
-# boosting uses several CPU cores (as on GitHub's servers). It floods the log and
-# can hide real errors, so we silence this one message only.
-warnings.filterwarnings(
-    "ignore", message=r".*sklearn\.utils\.parallel\.delayed.*", category=UserWarning)
 
 from . import config
 from .features import build_features
