@@ -45,6 +45,9 @@
       </div>
       <div class="chart-wrap tall"><canvas id="fan" aria-label="Recent prices and forecast ranges"></canvas></div>
       <p class="note" id="fan-note"></p>
+      <h3 class="score-title">How has this model performed? <span id="score-sub"></span></h3>
+      <div class="scorecard" id="scorecard"></div>
+      <p class="note" id="score-note"></p>
     </section>
 
     <section>
@@ -96,6 +99,58 @@
       <h2>Track record</h2>
       <p class="lede">Forecasts whose target day has passed, checked against the real closing price.</p>
       <div class="table-wrap" id="track"></div>
+    </section>
+    <section id="how">
+      <h2>How this works</h2>
+
+      <h3>The three methods</h3>
+      <div class="cards">
+        <div class="card"><h4>No-change guess</h4>
+          <p><strong>For:</strong> a baseline to beat.</p>
+          <p><strong>How:</strong> assumes the price stays where it closed today. If a model cannot beat this, its forecasts add nothing.</p></div>
+        <div class="card"><h4>Ridge regression</h4>
+          <p><strong>For:</strong> a simple, transparent model.</p>
+          <p><strong>How:</strong> adds up the inputs with learned weights (a straight-line model). A penalty keeps the weights small so it does not chase noise.</p></div>
+        <div class="card"><h4>Gradient boosting</h4>
+          <p><strong>For:</strong> patterns that are not straight lines.</p>
+          <p><strong>How:</strong> builds 200 small decision trees one after another; each new tree corrects the errors of the ones before it.</p></div>
+      </div>
+      <p class="note">
+        <strong>Inputs:</strong> "Own price" = the stock's past returns, volatility, moving averages, and trading volume.
+        "+ Market" adds S&amp;P 500 (SPY) returns and volatility. "+ Company filings" adds revenue growth, profit margin,
+        earnings per share, debt ratio, and days since the last report. Every model predicts the change from today's close.
+      </p>
+
+      <h3 id="split-title">Training and testing</h3>
+      <p class="lede" id="split-text"></p>
+      <div class="timeline" id="timeline" aria-hidden="true"></div>
+      <p class="note">
+        The data is split by time, never shuffled: the model learns only from the past and is tested on a later period
+        it has never seen. The gap keeps training outcomes from overlapping the test period. After testing, the model is
+        retrained on all data up to today to make the forecast.
+      </p>
+
+      <h3>How accurate was it on the test period?</h3>
+      <div class="table-wrap"><table id="accuracy-table"></table></div>
+      <p class="note" id="accuracy-note"></p>
+
+      <h3>Where the data comes from</h3>
+      <div class="table-wrap"><table class="sources">
+        <thead><tr><th>Data</th><th>Source</th><th>How it is collected</th></tr></thead>
+        <tbody>
+          <tr><td>Daily prices and volume</td><td>Yahoo Finance (backup: Stooq)</td>
+            <td>The yfinance Python library requests Yahoo's public data service; if that fails, a CSV file is downloaded from Stooq. Prices are adjusted for stock splits and dividends.</td></tr>
+          <tr><td>Market (S&amp;P 500)</td><td>Yahoo Finance</td><td>Same as prices, using the SPY index fund.</td></tr>
+          <tr><td>Company filings</td><td>SEC EDGAR (U.S. Securities and Exchange Commission)</td>
+            <td>The SEC's official, free data API (XBRL "company facts") returns numbers from quarterly 10-Q and annual 10-K reports. Each number is used only from the day after it was filed.</td></tr>
+        </tbody>
+      </table></div>
+      <p class="note">
+        No web pages are scraped: all data comes from data services that return structured files (JSON or CSV).
+        <strong>Updates are automatic.</strong> A scheduled job on GitHub runs every weekday after the U.S. market closes
+        (about 6:30 pm New York time): it downloads the new data, retrains all models, saves the forecasts, and this site
+        updates within minutes. <span id="updated"></span>
+      </p>
     </section>
   </main>
 

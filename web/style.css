@@ -126,3 +126,30 @@ footer {
 }
 footer p { max-width: 70ch; margin: 0 0 0.5rem; }
 .error { color: var(--outcome); font-weight: 600; }
+
+h3 { margin: 2rem 0 0.75rem; font-size: 1.1rem; font-weight: 700; }
+h4 { margin: 0 0 0.5rem; font-size: 1rem; font-weight: 700; }
+.cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr)); gap: 1rem; }
+.card { background: var(--surface); border: 1px solid var(--rule); border-radius: 8px; padding: 1rem 1.1rem; }
+.card p { margin: 0 0 0.4rem; font-size: 0.925rem; }
+.score-title { margin: 1.75rem 0 0.75rem; }
+.score-title span { font-weight: 400; color: var(--muted); font-size: 0.9rem; }
+.scorecard { display: grid; grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr)); gap: 1rem; }
+.tile { background: var(--surface); border: 1px solid var(--rule); border-radius: 8px; padding: 0.9rem 1.1rem; }
+.tile .label { margin: 0; font-size: 0.85rem; font-weight: 600; color: var(--muted); }
+.tile .big { margin: 0.2rem 0; font-size: 2rem; font-weight: 700; letter-spacing: -0.02em; line-height: 1.15; }
+.tile .big.good { color: var(--range); }
+.tile .big.bad { color: var(--outcome); }
+.tile .sub { margin: 0; font-size: 0.85rem; color: var(--muted); }
+#score-note a { color: var(--range); }
+
+.timeline { display: flex; height: 2.25rem; border-radius: 6px; overflow: hidden; margin: 0.5rem 0 0.25rem;
+  font-size: 0.8rem; font-weight: 600; }
+.timeline div { display: flex; align-items: center; justify-content: center; white-space: nowrap; overflow: hidden; }
+.timeline .train { background: var(--range); color: var(--surface); }
+.timeline .gap { background: var(--rule); }
+.timeline .test { background: var(--outcome); color: var(--surface); }
+.timeline-labels { display: flex; justify-content: space-between; color: var(--muted); font-size: 0.8rem; }
+table.sources td { white-space: normal; text-align: left; vertical-align: top; }
+table.sources th { text-align: left; }
+table.sources td:first-child { white-space: nowrap; font-weight: 600; }

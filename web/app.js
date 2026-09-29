@@ -234,6 +234,121 @@ function renderCompare() {
     : `${HORIZON_NAMES[state.horizon]} ahead, from the close on ${niceDate(run)}. Past error is measured on the same recent test period for every row.`;
 }
 
+// ---------- how it works: split, accuracy, update time ----------
+function metricsFor(model = state.model) {
+  return tickerMeta().metrics?.[state.horizon]?.[model];
+}
+
+// Scorecard: three honest percentages for the selected model and time frame.
+function renderScorecard() {
+  const m = metricsFor(), n = metricsFor("naive");
+  $("score-sub").textContent = `${describeModel(state.model)}, ${HORIZON_NAMES[state.horizon]} ahead`;
+  if (!m || !n) { $("scorecard").innerHTML = ""; $("score-note").textContent = ""; return; }
+  const tile = (label, big, cls, sub) =>
+    `<div class="tile"><p class="label">${label}</p><p class="big ${cls}">${big}</p><p class="sub">${sub}</p></div>`;
+  const tiles = [];
+
+  // 1. Direction right (test period)
+  if (m.hit_rate == null) {
+    tiles.push(tile("Direction right", "—", "", "The no-change guess never predicts up or down."));
+  } else {
+    const hr = Math.round(100 * m.hit_rate);
+    tiles.push(tile("Direction right", `${hr}%`, hr > 50 ? "good" : "bad",
+      `Called up vs. down correctly on ${m.test_days} test days. A coin flip gets 50%.`));
+  }
+
+  // 2. Error compared with the no-change guess (test period)
+  const err = 100 * m.mae, nerr = 100 * n.mae;
+  if (state.model === "naive") {
+    tiles.push(tile("Average error", `${err.toFixed(1)}%`, "",
+      "How far the price moved on average. Every model is compared with this."));
+  } else {
+    const diff = Math.round(100 * (1 - m.mae / n.mae));
+    const big = diff === 0 ? "Same" : `${Math.abs(diff)}% ${diff > 0 ? "smaller" : "larger"}`;
+    tiles.push(tile("Error compared with no-change guess", big, diff > 0 ? "good" : diff < 0 ? "bad" : "",
+      `Average error ${err.toFixed(1)}% vs. ${nerr.toFixed(1)}% for the no-change guess, on the same test days.`));
+  }
+
+  // 3. Inside the range (forecasts whose target day has passed)
+  const pct = Math.round(state.meta.interval * 100);
+  const done = rowsFor({}).filter((r) => r.horizon === state.horizon)
+    .map((r) => ({ r, a: actualFor(r.target_date) })).filter((x) => x.a);
+  if (!done.length) {
+    const next = rowsFor({}).filter((r) => r.horizon === state.horizon).map((r) => r.target_date).sort()[0];
+    tiles.push(tile(`Inside the ${pct}% range`, "—", "",
+      `No forecast has reached its target day yet${next ? `; the first is due ${niceDate(next)}` : ""}.`));
+  } else {
+    const inside = done.filter((x) => x.a.close >= x.r.lo && x.a.close <= x.r.hi).length;
+    const cov = Math.round((100 * inside) / done.length);
+    const live = done.filter((x) => x.r.live !== false).length;
+    tiles.push(tile(`Inside the ${pct}% range`, `${cov}%`, Math.abs(cov - pct) <= 10 ? "good" : "bad",
+      `Real price fell inside the range in ${inside} of ${done.length} checked forecasts ` +
+      `(${live === 0 ? "all reconstructed by backfill" : live === done.length ? "all made live" : `${live} made live, the rest reconstructed`}). ` +
+      `Target: about ${pct}%; much higher means the range is wider than needed.`));
+  }
+
+  $("scorecard").innerHTML = tiles.join("");
+  $("score-note").innerHTML =
+    `The first two numbers come from a test period the model never saw during training; the third checks forecasts ` +
+    `against real prices after their target day. Blue means better than the benchmark (for the range: close to its ` +
+    `${pct}% target); orange means worse or off target. ` +
+    `<a href="#how">How we test</a>`;
+}
+
+function renderSplit() {
+  const m = metricsFor(state.model === "naive" ? "gbm:all" : state.model) || metricsFor();
+  if (!m || !m.train_start) {
+    $("split-text").textContent = "Training dates appear after the next pipeline run.";
+    $("timeline").innerHTML = "";
+    return;
+  }
+  $("split-title").textContent = `Training and testing: ${state.ticker}, ${HORIZON_NAMES[state.horizon]}`;
+  $("split-text").textContent =
+    `Training: ${niceDate(m.train_start)} to ${niceDate(m.train_end)} (${m.train_days} trading days, about 80%). ` +
+    `Gap: ${m.gap_days} trading days. ` +
+    `Testing: ${niceDate(m.test_start)} to ${niceDate(m.test_end)} (${m.test_days} trading days, about 20%).`;
+  const total = m.train_days + m.gap_days + m.test_days;
+  const w = (d) => `${(100 * d) / total}%`;
+  $("timeline").innerHTML =
+    `<div class="train" style="width:${w(m.train_days)}">Training</div>` +
+    `<div class="gap" style="width:${w(m.gap_days)}"></div>` +
+    `<div class="test" style="width:${w(m.test_days)}">Testing</div>`;
+}
+
+function renderAccuracy() {
+  const all = tickerMeta().metrics?.[state.horizon] || {};
+  const naive = all.naive;
+  if (!naive) { $("accuracy-table").innerHTML = ""; return; }
+  const ids = [...new Set([state.model, "naive"])];
+  const head = `<thead><tr><th>Model</th><th>Average error</th><th>Direction right</th>
+    <th>"100% minus error" score</th><th>Error vs. no-change guess</th></tr></thead>`;
+  const body = ids.filter((id) => all[id]).map((id) => {
+    const m = all[id];
+    const [algoName, inputName] = shortModel(id);
+    const label = id === "naive" ? algoName : `${algoName} (${inputName})`;
+    return `<tr class="${id === state.model ? "selected" : ""}"><td>${label}</td>
+      <td>${(100 * m.mae).toFixed(1)}%</td>
+      <td>${m.hit_rate == null ? "–" : Math.round(100 * m.hit_rate) + "%"}</td>
+      <td>${(100 - 100 * m.mae).toFixed(1)}%</td>
+      <td class="${m.mae_vs_naive < 1 ? "good" : ""}">${m.mae_vs_naive.toFixed(2)}</td></tr>`;
+  }).join("");
+  $("accuracy-table").innerHTML = head + `<tbody>${body}</tbody>`;
+  const pct = Math.round(state.meta.interval * 100);
+  $("accuracy-note").innerHTML =
+    `${state.ticker}, ${HORIZON_NAMES[state.horizon]} ahead, measured on the test period. ` +
+    `<strong>Why there is no single "96% accurate" number:</strong> the "100% minus error" score looks high for any model, ` +
+    `even the no-change guess, because prices rarely move far in a short time. What matters is whether a model beats ` +
+    `the no-change guess (error ratio below 1.00) and gets the direction right more often than a coin flip. ` +
+    `The ${pct}% range was set from these same test errors, so its real reliability shows only on new days: ` +
+    `see the Track record section.`;
+}
+
+function renderUpdated() {
+  const t = new Date(state.meta.generated_at);
+  $("updated").textContent = isNaN(t) ? "" :
+    `Last update: ${t.toLocaleString("en-US", { dateStyle: "medium", timeStyle: "short" })}.`;
+}
+
 // ---------- sector comparison ----------
 function tickersInSector() {
   return state.meta.tickers.filter((t) => state.sector === ALL_SECTORS || t.sector === state.sector);
@@ -435,6 +550,10 @@ function renderAll() {
   renderTargetSelect();
   renderRevision();
   renderTrack();
+  renderScorecard();
+  renderSplit();
+  renderAccuracy();
+  renderUpdated();
 }
 
 // ---------- events ----------
