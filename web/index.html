@@ -31,8 +31,12 @@
       <p class="asof" id="asof"></p>
       <h1 id="headline">Loading forecasts…</h1>
       <div class="controls">
-        <div class="seg" role="group" aria-label="Time frame" id="horizons"></div>
-        <div class="seg" role="group" aria-label="Model" id="models"></div>
+        <div class="group"><span class="group-label">Time frame</span>
+          <div class="seg" role="group" aria-label="Time frame" id="horizons"></div></div>
+        <div class="group"><span class="group-label">Method</span>
+          <div class="seg" role="group" aria-label="Method" id="algos"></div></div>
+        <div class="group"><span class="group-label">Inputs the model sees</span>
+          <div class="seg" role="group" aria-label="Inputs" id="inputs"></div></div>
       </div>
       <div class="chart-wrap tall"><canvas id="fan" aria-label="Recent prices and forecast ranges"></canvas></div>
       <p class="note" id="fan-note"></p>
@@ -45,6 +49,17 @@
         "Past error vs. no-change guess" compares the model's error on a recent test period
         with a guess that the price stays the same. Below 1.00 means the model did better.
       </p>
+    </section>
+
+    <section>
+      <h2>Does more information help?</h2>
+      <p class="lede">
+        The same forecast made with different inputs. Compare the ranges and the past error:
+        if adding market or company data does not lower the error, that information did not help
+        this stock over this time frame. Click a row to show it on the chart.
+      </p>
+      <div class="table-wrap"><table id="compare-table"></table></div>
+      <p class="note" id="compare-note"></p>
     </section>
 
     <section>

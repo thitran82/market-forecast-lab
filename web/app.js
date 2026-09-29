@@ -1,10 +1,34 @@
 // Market Forecast Lab front end. Reads JSON from data/ and draws charts. No build step.
 
 const HORIZON_NAMES = { "3d": "3 days", "7d": "7 days", "10d": "10 days", "1m": "1 month", "3m": "3 months" };
-const MODEL_NAMES = { naive: "No-change guess", ridge: "Ridge regression", gbm: "Gradient boosting" };
+const ALGO_NAMES = { naive: "No-change guess", ridge: "Ridge regression", gbm: "Gradient boosting" };
+const INPUT_NAMES = { price: "Own price", price_market: "+ Market", all: "+ Company filings" };
+const INPUT_LONG = {
+  price: "its own price history",
+  price_market: "its own price history and the market",
+  all: "price history, the market, and company filings",
+};
+const LEGACY_IDS = { ridge: "ridge:price_market", gbm: "gbm:all" }; // names used by older data files
+const MODEL_ORDER = ["naive", ...["ridge", "gbm"].flatMap((a) => Object.keys(INPUT_NAMES).map((i) => `${a}:${i}`))];
+
+// "gbm:all" -> "gradient boosting model (price history, the market, and company filings)"
+function describeModel(id) {
+  if (id === "naive") return "no-change guess";
+  const [algo, inputs] = id.split(":");
+  return `${ALGO_NAMES[algo].toLowerCase()} model using ${INPUT_LONG[inputs]}`;
+}
+function shortModel(id) {
+  if (id === "naive") return ["No-change guess", "—"];
+  const [algo, inputs] = id.split(":");
+  return [ALGO_NAMES[algo], INPUT_NAMES[inputs]];
+}
 const HISTORY_DAYS = 126; // trading days of past prices on the main chart
 
-const state = { meta: null, ticker: null, model: "gbm", horizon: "1m", prices: null, vintages: [], target: null };
+const state = { meta: null, ticker: null, algo: "gbm", inputs: "all", horizon: "1m", prices: null, vintages: [], target: null };
+// The selected model id, e.g. "gbm:all" or "naive".
+Object.defineProperty(state, "model", {
+  get() { return this.algo === "naive" ? "naive" : `${this.algo}:${this.inputs}`; },
+});
 const charts = {};
 
 const $ = (id) => document.getElementById(id);
@@ -72,7 +96,7 @@ function latestRunDate() {
   return state.vintages.reduce((m, v) => (v.run_date > m ? v.run_date : m), "");
 }
 function rowsFor({ run, model = state.model }) {
-  return state.vintages.filter((v) => v.model === model && (!run || v.run_date === run));
+  return state.vintages.filter((v) => (model === null || v.model === model) && (!run || v.run_date === run));
 }
 // Close on the target day, or the next trading day if the target was a holiday.
 function actualFor(target) {
@@ -93,8 +117,13 @@ function renderControls() {
   $("horizons").innerHTML = Object.keys(HORIZON_NAMES)
     .map((h) => `<button type="button" data-h="${h}" aria-pressed="${h === state.horizon}">${HORIZON_NAMES[h]}</button>`)
     .join("");
-  $("models").innerHTML = state.meta.models
-    .map((m) => `<button type="button" data-m="${m}" aria-pressed="${m === state.model}">${MODEL_NAMES[m] || m}</button>`)
+  $("algos").innerHTML = Object.keys(ALGO_NAMES)
+    .map((a) => `<button type="button" data-a="${a}" aria-pressed="${a === state.algo}">${ALGO_NAMES[a]}</button>`)
+    .join("");
+  const off = state.algo === "naive";
+  $("inputs").innerHTML = Object.keys(INPUT_NAMES)
+    .map((i) => `<button type="button" data-i="${i}" aria-pressed="${!off && i === state.inputs}" ${off ? "disabled" : ""}
+      title="${off ? "The no-change guess uses no inputs" : ""}">${INPUT_NAMES[i]}</button>`)
     .join("");
 }
 
@@ -108,9 +137,10 @@ function renderHero() {
     return;
   }
   const pct = Math.round(state.meta.interval * 100);
+  const article = /^(8|11|18)/.test(String(pct)) ? "an" : "a"; // "an 80%", "a 90%"
   $("headline").innerHTML =
-    `In ${HORIZON_NAMES[state.horizon]} (${niceDate(row.target_date)}), the ${MODEL_NAMES[state.model].toLowerCase()} ` +
-    `model expects about <span class="num">${money(row.point)}</span>, with a ${pct}% range of ` +
+    `In ${HORIZON_NAMES[state.horizon]} (${niceDate(row.target_date)}), the ${describeModel(state.model)} ` +
+    `expects about <span class="num">${money(row.point)}</span>, with ${article} ${pct}% range of ` +
     `<span class="range">${money(row.lo)} to ${money(row.hi)}</span>.`;
   $("fan-note").textContent =
     `Shaded area: the ${pct}% range for each time frame. On a recent test period, about ${pct} in 100 ` +
@@ -174,6 +204,32 @@ function renderTable() {
       <td class="${cls}">${ratioText}</td></tr>`;
   }).join("");
   $("horizon-table").innerHTML = head + `<tbody>${body}</tbody>`;
+}
+
+function renderCompare() {
+  const run = latestRunDate();
+  const rows = rowsFor({ run, model: null }).filter((r) => r.horizon === state.horizon);
+  const byModel = Object.fromEntries(rows.map((r) => [r.model, r]));
+  const m = tickerMeta().metrics[state.horizon] || {};
+  const head = `<thead><tr><th>Method</th><th>Inputs</th><th>Low</th><th>Forecast</th><th>High</th>
+    <th>Range width</th><th>Past error vs. no-change guess</th></tr></thead>`;
+  const body = MODEL_ORDER.filter((id) => byModel[id]).map((id) => {
+    const r = byModel[id];
+    const [algoName, inputName] = shortModel(id);
+    const ratio = m[id]?.mae_vs_naive;
+    const cls = ratio != null && ratio < 1 ? "good" : "";
+    return `<tr class="clickable ${id === state.model ? "selected" : ""}" data-model="${id}" tabindex="0">
+      <td>${algoName}</td><td>${inputName}</td>
+      <td>${money(r.lo)}</td><td>${money(r.point)}</td><td>${money(r.hi)}</td>
+      <td>${money(r.hi - r.lo)}</td><td class="${cls}">${ratio == null ? "–" : ratio.toFixed(2)}</td></tr>`;
+  }).join("");
+  $("compare-table").innerHTML = head + `<tbody>${body}</tbody>`;
+
+  // Say so when company filings add nothing for this stock (e.g. an ETF like SPY).
+  const nAll = m["gbm:all"]?.n_features, nMkt = m["gbm:price_market"]?.n_features;
+  $("compare-note").textContent = nAll != null && nAll === nMkt
+    ? `No usable company-filing data for ${state.ticker}, so "+ Company filings" uses the same inputs as "+ Market".`
+    : `${HORIZON_NAMES[state.horizon]} ahead, from the close on ${niceDate(run)}. Past error is measured on the same recent test period for every row.`;
 }
 
 function targetOptions() {
@@ -269,7 +325,7 @@ function renderTrack() {
   $("track").innerHTML = `<table><thead><tr><th>Time frame</th><th>Forecasts checked</th>
     <th>Real close inside range (target ${pct}%)</th><th>Average error of forecast</th></tr></thead>
     <tbody>${rows}</tbody></table>
-    <p class="note">For the ${MODEL_NAMES[state.model].toLowerCase()} model. ${
+    <p class="note">For the ${describeModel(state.model)}. ${
       done.filter((x) => x.r.live === false).length} of ${done.length} checked forecasts were reconstructed
     after the fact (backfill), not made live. Nearby days share most of their information, so a few dozen
     checks can still be noisy.</p>`;
@@ -301,6 +357,7 @@ function renderAll() {
   renderHero();
   renderFan();
   renderTable();
+  renderCompare();
   renderTargetSelect();
   renderRevision();
   renderTrack();
@@ -313,7 +370,7 @@ async function loadTicker(t) {
   try {
     const [prices, fc] = await Promise.all([getJSON(`data/prices/${t}.json`), getJSON(`data/forecasts/${t}.json`)]);
     state.prices = prices;
-    state.vintages = fc.vintages;
+    state.vintages = fc.vintages.map((v) => ({ ...v, model: LEGACY_IDS[v.model] || v.model }));
     state.target = null;
     renderAll();
   } catch (e) {
@@ -325,7 +382,21 @@ document.addEventListener("click", (e) => {
   const b = e.target.closest("button");
   if (!b) return;
   if (b.dataset.h) { state.horizon = b.dataset.h; renderAll(); }
-  if (b.dataset.m) { state.model = b.dataset.m; renderAll(); }
+  if (b.dataset.a) { state.algo = b.dataset.a; renderAll(); }
+  if (b.dataset.i) { state.inputs = b.dataset.i; renderAll(); }
+});
+function selectModel(id) {
+  if (id === "naive") state.algo = "naive";
+  else [state.algo, state.inputs] = id.split(":");
+  renderAll();
+}
+$("compare-table").addEventListener("click", (e) => {
+  const tr = e.target.closest("tr[data-model]");
+  if (tr) selectModel(tr.dataset.model);
+});
+$("compare-table").addEventListener("keydown", (e) => {
+  const tr = e.target.closest("tr[data-model]");
+  if (tr && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); selectModel(tr.dataset.model); }
 });
 $("ticker").addEventListener("change", (e) => loadTicker(e.target.value));
 $("target").addEventListener("change", (e) => { state.target = e.target.value; renderRevision(); });
@@ -339,6 +410,13 @@ window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () 
     return;
   }
   $("demo-banner").hidden = !state.meta.demo;
+  state.meta.tickers.forEach((t) => {   // rename models saved by older versions
+    Object.values(t.metrics || {}).forEach((byModel) => {
+      Object.entries(LEGACY_IDS).forEach(([oldId, newId]) => {
+        if (byModel[oldId] && !byModel[newId]) byModel[newId] = byModel[oldId];
+      });
+    });
+  });
   const tickers = state.meta.tickers.map((t) => t.ticker);
   $("ticker").innerHTML = tickers.map((t) => `<option>${t}</option>`).join("");
   const fromHash = location.hash.slice(1).toUpperCase();
